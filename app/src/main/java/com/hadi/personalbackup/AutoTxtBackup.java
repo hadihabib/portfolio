@@ -66,8 +66,10 @@ public final class AutoTxtBackup {
 
             writeFull(context, getOrCreateFile(context, dir, MESSAGES_FILE), fullSmsText);
             writeFull(context, getOrCreateFile(context, dir, CALLS_FILE), fullCallsText);
+            DiagnosticState.markFileWrite(context, true);
             return true;
         } catch (Exception e) {
+            DiagnosticState.markFileWrite(context, false);
             return false;
         }
     }
@@ -90,7 +92,10 @@ public final class AutoTxtBackup {
                 calls = getOrCreateFile(context, dir, CALLS_FILE);
                 writeFull(context, calls, fullCallsText);
             }
-        } catch (Exception ignored) {}
+            DiagnosticState.markFileWrite(context, true);
+        } catch (Exception ignored) {
+            DiagnosticState.markFileWrite(context, false);
+        }
     }
 
     public static synchronized void appendMessage(Context context, String entry, String fullFallbackText) {
@@ -106,12 +111,16 @@ public final class AutoTxtBackup {
 
         try {
             Uri dir = getOrCreateHiddenDirectory(context);
-            if (dir == null) return;
+            if (dir == null) {
+                DiagnosticState.markFileWrite(context, false);
+                return;
+            }
 
             Uri file = findChild(context, dir, fileName);
             if (file == null) {
                 file = getOrCreateFile(context, dir, fileName);
                 writeFull(context, file, fullFallbackText);
+                DiagnosticState.markFileWrite(context, true);
                 return;
             }
 
@@ -122,7 +131,11 @@ public final class AutoTxtBackup {
                 // rewrite the existing document URI from the local database snapshot.
                 writeFull(context, file, fullFallbackText);
             }
-        } catch (Exception ignored) {}
+
+            DiagnosticState.markFileWrite(context, true);
+        } catch (Exception ignored) {
+            DiagnosticState.markFileWrite(context, false);
+        }
     }
 
     private static Uri getTreeUri(Context context) {

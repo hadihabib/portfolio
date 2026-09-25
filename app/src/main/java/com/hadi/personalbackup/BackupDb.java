@@ -60,7 +60,7 @@ public class BackupDb extends SQLiteOpenHelper {
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
     }
 
-    public synchronized void insertSms(String phone, String body, String direction, long eventTime) {
+    public synchronized boolean insertSms(String phone, String body, String direction, long eventTime) {
         if (phone == null) phone = "";
         if (body == null) body = "";
         if (direction == null) direction = "UNKNOWN";
@@ -73,17 +73,33 @@ public class BackupDb extends SQLiteOpenHelper {
         cv.put("event_time", eventTime);
         cv.put("saved_time", System.currentTimeMillis());
 
-        long rowId = getWritableDatabase().insertWithOnConflict(
-            "sms_backup", null, cv, SQLiteDatabase.CONFLICT_IGNORE
-        );
+        final long rowId;
+        try {
+            rowId = getWritableDatabase().insertWithOnConflict(
+                    "sms_backup", null, cv, SQLiteDatabase.CONFLICT_IGNORE
+            );
+        } catch (Throwable error) {
+            DiagnosticState.markSmsDbResult(
+                    context,
+                    "Database error: " + error.getClass().getSimpleName() +
+                    (error.getMessage() == null ? "" : " - " + error.getMessage())
+            );
+            return false;
+        }
 
         if (rowId != -1) {
+            DiagnosticState.markMessageSaved(context);
+            DiagnosticState.markSmsDbResult(context, "Saved successfully");
             AutoTxtBackup.appendMessage(
-                context,
-                formatSmsEntry(phone, body, direction, eventTime),
-                exportSmsText()
+                    context,
+                    formatSmsEntry(phone, body, direction, eventTime),
+                    exportSmsText()
             );
+            return true;
         }
+
+        DiagnosticState.markSmsDbResult(context, "Duplicate / already stored");
+        return false;
     }
 
     public synchronized void insertCall(String systemId, String phone, int callType, long eventTime, long duration) {
@@ -106,6 +122,7 @@ public class BackupDb extends SQLiteOpenHelper {
         );
 
         if (rowId != -1) {
+            DiagnosticState.markCallSaved(context);
             AutoTxtBackup.appendCall(
                 context,
                 formatCallEntry(phone, callType, eventTime, duration),
